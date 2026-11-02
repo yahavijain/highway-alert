@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Highway Alert</title>
+<style>
+body{font-family:sans-serif;max-width:480px;margin:auto;padding:16px}
+button{width:100%;padding:14px;margin:6px 0;font-size:16px}
+#banner{display:none;background:#c00;color:#fff;padding:16px;font-size:20px;border-radius:8px}
+.sos{background:#c00;color:#fff;display:block;text-align:center;padding:14px;margin:6px 0;text-decoration:none;font-size:18px}
+</style></head><body>
+<h2>Highway Accident Alert</h2>
+<div id="banner"></div>
+<button onclick="startTracking()">Start tracking</button>
+<p id="status">Not tracking</p>
+<h3>Report an accident</h3>
+<input type="file" id="photo" accept="image/*" capture="environment">
+<button onclick="report()">Send report</button>
+<p id="result"></p>
+<a class="sos" href="tel:112">Call emergency (112)</a>
+<script>
+const id = "car" + Math.floor(Math.random()*1000);
+let pos = null, spoken = new Set();
+function startTracking(){
+  navigator.geolocation.watchPosition(p=>{
+    pos = p.coords;
+    document.getElementById("status").textContent =
+      "Tracking as "+id+" at "+pos.latitude.toFixed(4)+", "+pos.longitude.toFixed(4);
+    const f = new FormData();
+    f.append("vehicle_id", id); f.append("lat", pos.latitude);
+    f.append("lon", pos.longitude); f.append("heading", pos.heading ?? 0);
+    fetch("/location",{method:"POST",body:f});
+  }, e=>alert(e.message), {enableHighAccuracy:true});
+  setInterval(checkAlerts, 3000);
+}
+async function checkAlerts(){
+  const r = await (await fetch("/alerts/"+id)).json();
+  const b = document.getElementById("banner");
+  if(r.alerts.length){
+    const a = r.alerts[0];
+    b.style.display="block"; b.textContent = a.message;
+    if(!spoken.has(a.accident_id)){
+      spoken.add(a.accident_id);
+      speechSynthesis.speak(new SpeechSynthesisUtterance(a.message));
+    }
+  } else b.style.display="none";
+}
+async function report(){
+  const file = document.getElementById("photo").files[0];
+  if(!file||!pos) return alert("Start tracking and choose a photo first");
+  const f = new FormData();
+  f.append("file", file); f.append("lat", pos.latitude); f.append("lon", pos.longitude);
+  const r = await (await fetch("/report",{method:"POST",body:f})).json();
+  document.getElementById("result").textContent = r.verified
+    ? "Accident verified. Alert sent." : "Not verified as an accident.";
+}
+</script></body></html>

@@ -59,3 +59,9 @@ def alerts(vehicle_id: str):
             out.append({"accident_id": a["id"], "distance_km": round(d, 2),
                         "message": f"Accident {d:.1f} km ahead. Slow down."})
     return {"alerts": out}
+
+from fastapi.responses import FileResponse
+
+@app.get("/")
+def home():
+    return FileResponse("index.html")
