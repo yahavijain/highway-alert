@@ -1,4 +1,4 @@
-import io, math, uuid, logging
+import io, math, os, uuid, logging
 from datetime import timedelta
 from pathlib import Path
 
@@ -7,7 +7,6 @@ from fastapi.responses import FileResponse
 from PIL import Image
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from ultralytics import YOLO
 
 from database import Base, engine, get_db
 from models import Vehicle, Accident, Report, utcnow
@@ -17,7 +16,15 @@ log = logging.getLogger("highway-alert")
 
 Base.metadata.create_all(engine)
 app = FastAPI(title="Highway Accident Alert", version="1.0.0")
-model = YOLO("best.pt")
+MODEL_PATH = os.getenv("MODEL_PATH", "best.pt")
+_model = None
+
+def get_model():
+    global _model
+    if _model is None:
+        from ultralytics import YOLO
+        _model = YOLO(MODEL_PATH)
+    return _model
 
 CONF_THRESHOLD = 0.5
 ALERT_RADIUS_KM = 5
@@ -109,7 +116,7 @@ def report(
     except Exception:
         raise HTTPException(400, "Invalid image")
 
-    boxes = model(img, verbose=False)[0].boxes
+    boxes = get_model()(img, verbose=False)[0].boxes
     conf = float(boxes.conf.max()) if len(boxes) else 0.0
     if conf < CONF_THRESHOLD:
         log.info("Report rejected (confidence %.2f)", conf)
